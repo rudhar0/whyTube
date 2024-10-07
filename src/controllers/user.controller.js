@@ -9,13 +9,15 @@ const genrateAccessAndRefreshToken = async (userId) => {
       const user = await User.findById(userId);
       const accessToken = user.generateAccessToken();
       const refreshToken = user.generateRefreshToken();
+
       user.refreshToken = refreshToken;
       await user.save({ validateBeforeSave: false });
+
       return { accessToken, refreshToken };
    } catch (error) {
       throw new apiError(
          500,
-         "Somethng went wrong while genrating refresh token "
+         "Something went wrong while generating referesh and access token"
       );
    }
 };
@@ -75,13 +77,16 @@ const registerUser = asyncHandler(async (req, res) => {
 });
 
 const loginUser = asyncHandler(async (req, res) => {
-   const { email, password, username } = req.body;
+   const { email, username, password } = req.body;
 
-   if (!username || !email) {
+ 
+
+   if (!(username || email)) {
       throw new apiError(400, "username or password is required");
    }
-
-   const user = await User.findOne({ $or: [{ username }, { email }] });
+   const user = await User.findOne({
+      $or: [{ username }, { email }],
+   });
 
    if (!user) {
       throw new apiError(404, "User not found");
@@ -96,8 +101,38 @@ const loginUser = asyncHandler(async (req, res) => {
       user._id
    );
 
-   const loggedInUser = User.findById(user._id).select(
-      "-password -refreshToken"
+   const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
+   const options = {
+      httpOnly: true,
+      secure: true
+  }
+
+  return res
+  .status(200)
+  .cookie("accessToken", accessToken, options)
+  .cookie("refreshToken", refreshToken, options)
+  .json(
+      new apiRespone(
+          200, 
+          {
+              user: loggedInUser, accessToken, refreshToken
+          },
+          "User logged In Successfully"
+      )
+  )
+});
+
+const logoutUser = asyncHandler(async (req, res) => {
+   await User.findByIdAndUpdate(
+      req.user._id,
+      {
+         $set: {
+            refreshToken: undefined,
+         },
+      },
+      {
+         new: true,
+      }
    );
 
    const options = {
@@ -106,24 +141,9 @@ const loginUser = asyncHandler(async (req, res) => {
    };
 
    res.status(200)
-      .cookie("accessToken", accessToken, options)
-      .cookie("refreshToken", refreshToken, options)
-      .json(
-         new apiRespone(
-            200,
-            {
-               user: loggedInUser,
-               accessToken,
-               refreshToken,
-            },
-            "user loged in succesfully"
-         )
-      );
+      .clearCookie("accessToken", options)
+      .clearCookie("refreshToken", options)
+      .json(new apiRespone(200, {}, "User logged Out"));
 });
 
-
-const logoutUser = asyncHandler( async (req,res)=>{
-   
-})
-
-export { registerUser, loginUser };
+export { registerUser, loginUser, logoutUser };
