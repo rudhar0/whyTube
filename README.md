@@ -1,2 +1,0 @@
-# whyTube
-Clone of Youtube
