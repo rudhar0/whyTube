@@ -29,13 +29,15 @@ router.route("/publish-video").post(
   publishAVideo
 );
 
-router.route("/videoId").get(getVideoById);
+router.route("/:videoId").get(getVideoById);
+router
+  .route("/update-video/:videoId")
+  .patch(upload.single("thumbnail"), updateVideo);
 
 router
   .route("/:videoIbbbd")
 
-  .delete(deleteVideo)
-  .patch(upload.single("thumbnail"), updateVideo);
+  .delete(deleteVideo);
 
 router.route("/toggle/publish/:videoId").patch(togglePublishStatus);
 

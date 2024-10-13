@@ -36,7 +36,6 @@ const publishAVideo = asyncHandler(async (req, res) => {
   if (!isVideo) {
     throw new ApiError(400, " Video extension must be MP4 MKV AVI MOV");
   }
-  log(req.files);
 
   if (!req.files?.thumbnail) {
     throw new ApiError(400, "Thumbnail is required");
@@ -59,8 +58,6 @@ const publishAVideo = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Thumbnail is required");
   }
 
-  console.log(videoFile);
-
   const video = await Video.create({
     videoFile: videoFile.url,
     title,
@@ -77,15 +74,66 @@ const publishAVideo = asyncHandler(async (req, res) => {
 
 const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  //TODO: get video by id
 
-  const video = await Video.findById(mongoose.Types.ObjectId(videoId))
-  console.log(video)
+  if (!videoId) {
+    throw new ApiError(400, "Video Id is required");
+  }
+
+  const video = await Video.findById(new mongoose.Types.ObjectId(videoId));
+
+  if (!video) {
+    throw new ApiError(400, "Video Id is Invalid");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, video, "Video fected succesfully"));
 });
 
 const updateVideo = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  //TODO: update video details like title, description, thumbnail
+
+  const { title, description } = req.body;
+  console.log(req.file);
+  const thumbnailPath = req.file?.path;
+
+  if (!title && !description && !thumbnailPath) {
+    throw new ApiError(400, "All fields are required");
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(videoId)) {
+    throw new ApiError(400, "Invalid video ID");
+  }
+
+  const videoOwner = await Video.findById(videoId);
+  if (!videoOwner) {
+    throw new ApiError(404, "Video not found");
+  }
+
+  if (videoOwner.owner.toString() !== req.user._id.toString()) {
+    throw new ApiError(
+      400,
+      "Authentication Failed: You are not authorized to update this video"
+    );
+  }
+
+  const video = await Video.findByIdAndUpdate(
+    videoId,
+    {
+      $set: {
+        title,
+        description,
+        thumbnail: thumbnailPath,
+      },
+    },
+    { new: true }
+  );
+  if (!video) {
+    throw new ApiError(404, "Video not found");
+  }
+  return res
+    .status(200)
+    .json(new ApiResponse(200, video, "Video update succesfully"));
 });
 
 const deleteVideo = asyncHandler(async (req, res) => {
