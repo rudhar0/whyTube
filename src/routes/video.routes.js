@@ -34,10 +34,7 @@ router
   .route("/update-video/:videoId")
   .patch(upload.single("thumbnail"), updateVideo);
 
-router
-  .route("/:videoIbbbd")
-
-  .delete(deleteVideo);
+router.route("/delete-video/:videoId").delete(deleteVideo);
 
 router.route("/toggle/publish/:videoId").patch(togglePublishStatus);
 
