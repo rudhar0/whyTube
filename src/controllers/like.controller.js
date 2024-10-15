@@ -133,7 +133,7 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
 });
 
 const getLikedVideos = asyncHandler(async (req, res) => {
-  //TODO: get all liked videos
+
 
   const likedVideos = await Like.aggregate([
     {
@@ -141,14 +141,14 @@ const getLikedVideos = asyncHandler(async (req, res) => {
     },
     {
       $lookup: {
-        from: "Video",
+        from: "videos", 
         localField: "video",
         foreignField: "_id",
-        as: "likedVideo",
+        as: "likedVideos",
         pipeline: [
           {
             $lookup: {
-              from: "user",
+              from: "users",
               localField: "owner",
               foreignField: "_id",
               as: "owner",
@@ -174,26 +174,19 @@ const getLikedVideos = asyncHandler(async (req, res) => {
       },
     },
     {
-      $unwind: "$likedVideo" 
+      $unwind: "$likedVideos",
     },
     {
-      $replaceRoot: { newRoot: "$likedVideo" }
-    }
+      $replaceRoot: { newRoot: "$likedVideos" },
+    },
   ]);
-
+  
   if (!likedVideos.length) {
     throw new ApiError(400, "Liked videos not found");
   }
-
-  return res
-    .status(200)
-    .json(
-      new ApiResponse(
-        200,
-        likedVideos,
-        "Liked videos fetched succesfully"
-      )
-    );
+  
+  return res.status(200).json(new ApiResponse(200, likedVideos, "Liked videos fetched successfully"));
+  
 });
 
 export { toggleCommentLike, toggleTweetLike, toggleVideoLike, getLikedVideos };
