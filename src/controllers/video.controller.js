@@ -6,7 +6,8 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import path from "path";
-
+import { Like } from "../models/like.model.js";
+import { Comment } from "../models/comment.model.js";
 
 const getAllVideos = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
@@ -169,6 +170,8 @@ const deleteVideo = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Video is Not deleted");
   }
 
+  await Like.deleteMany({ video: videoId });
+  await Comment.deleteMany({ video: videoId });
   return res
     .status(200)
     .json(new ApiResponse(200, {}, "Video deleted succesfully"));
@@ -199,8 +202,9 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
   video.isPublished = !video.isPublished;
   await video.save({ validateBeforeSave: false });
 
-
-  const message = video.isPublished ? "Video is Published Successfully" : "Video is Unpublished Successfully";
+  const message = video.isPublished
+    ? "Video is Published Successfully"
+    : "Video is Unpublished Successfully";
 
   return res.status(200).json(new ApiResponse(200, video, `${message}`));
 });

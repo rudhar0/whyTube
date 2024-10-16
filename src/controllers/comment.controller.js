@@ -11,7 +11,6 @@ const getVideoComments = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10 } = req.query;
 });
 
-
 const addComment = asyncHandler(async (req, res) => {
   // TODO: add a comment to a video
   const { videoId } = req.params;
@@ -42,30 +41,25 @@ const addComment = asyncHandler(async (req, res) => {
 
 const updateComment = asyncHandler(async (req, res) => {
   // TODO: update a comment
-  const { videoId } = req.params;
+  const { commentId } = req.params;
   const { content } = req.body;
 
-  if (!mongoose.Types.ObjectId.isValid(videoId)) {
-    throw new ApiError(400, "Invalid video ID");
+  if (!mongoose.Types.ObjectId.isValid(commentId)) {
+    throw new ApiError(400, "Invalid comment ID");
   }
 
   if (!content) {
     throw new ApiError(400, "comment content required");
   }
 
-  const comment = await Comment.findOne({
-    $and: [
-      {
-        owner: req.user._id,
-      },
-      {
-        video: videoId,
-      },
-    ],
-  });
+  const comment = await Comment.findById(commentId);
 
   if (!comment) {
     throw new ApiError(400, "comment not found");
+  }
+
+  if (comment._id != req.user._id) {
+    throw new ApiError(400, "Unauthorised request");
   }
 
   comment.content = content;
@@ -78,27 +72,28 @@ const updateComment = asyncHandler(async (req, res) => {
 const deleteComment = asyncHandler(async (req, res) => {
   // TODO: delete a comment
 
-  const { videoId } = req.params;
+  const { commentId } = req.params;
 
-  if (!mongoose.Types.ObjectId.isValid(videoId)) {
+  if (!mongoose.Types.ObjectId.isValid(commentId)) {
     throw new ApiError(400, "Invalid video ID");
   }
 
-  const comment = await Comment.findOneAndDelete({
-    $and: [
-      {
-        owner: req.user._id,
-      },
-      {
-        video: videoId,
-      },
-    ],
-  });
+  const commentIsValid = await Comment.findById(commentId);
+
+  if (!commentIsValid) {
+    throw new ApiError(400, "comment not found");
+  }
+
+  if (commentIsValid._id != req.user._id) {
+    throw new ApiError(400, "Unauthorised request");
+  }
+
+  const comment = await Comment.findByIdAndDelete(commentId);
 
   if (!comment) {
     throw new ApiError(400, "comment not found");
   }
-  await Like.deleteMany({ comment: comment._id });
+  await Like.deleteMany({ comment: commentId });
 
   return res
     .status(200)
