@@ -1,6 +1,7 @@
 import mongoose, { isValidObjectId } from "mongoose";
 import { Tweet } from "../models/tweet.model.js";
 import { User } from "../models/user.model.js";
+import { Like } from "../models/like.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -58,18 +59,15 @@ const updateTweet = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid comment ID");
   }
 
-  const tweet = await Tweet.findById(tweetId);
+  const tweet = await Tweet.findOneAndUpdate(
+    { _id: tweetId, owner: req.user._id },
+    { content },
+    { new: true, runValidators: true }
+  );
 
   if (!tweet) {
     throw new ApiError(400, "tweet not found");
   }
-
-  if (tweet._id != req.user._id) {
-    throw new ApiError(400, "Unauthorised request");
-  }
-  tweet.content = content;
-  await tweet.save({ validateBeforeSave: false });
-
   return res
     .status(200)
     .json(new ApiResponse(201, tweet, "tweet Updated succesfully"));
@@ -80,27 +78,26 @@ const deleteTweet = asyncHandler(async (req, res) => {
 
   const { tweetId } = req.params;
 
+
   if (!tweetId) {
     throw new ApiError(400, "tweet ID Not found");
   }
+
 
   if (!mongoose.Types.ObjectId.isValid(tweetId)) {
     throw new ApiError(400, "Invalid comment ID");
   }
 
-  const tweet = await Tweet.findById(tweetId);
+  const tweet = await Tweet.findOneAndDelete({
+    _id: tweetId,
+    owner: req.user._id,
+  });
 
   if (!tweet) {
     throw new ApiError(400, "tweet not found");
   }
 
-  if (tweet._id != req.user._id) {
-    throw new ApiError(400, "Unauthorised request");
-  }
-  const tweetDelete = await Tweet.findByIdAndDelete(tweetId);
-  if (!tweetDelete) {
-    throw new ApiError(400, "tweet not deleted");
-  }
+  await Like.deleteMany({ tweet: tweetId });
 
   return res
     .status(200)
