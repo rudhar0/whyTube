@@ -84,7 +84,57 @@ const getVideoById = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid video ID");
   }
 
-  const video = await Video.findById(new mongoose.Types.ObjectId(videoId));
+  const user = await User.findById(req.user._id);
+
+  if (!user) {
+    throw new ApiError(400, "User not found");
+  }
+  if (!user.watchHistory.includes(videoId)) {
+    user.watchHistory.push = videoId;
+    await user.save({ validateBeforeSave: false });
+  }
+
+  const video = await Video.aggregate([
+    {
+      $match: {
+        id: new mongoose.Types.ObjectId(videoId),
+      },
+    },
+    {
+      $lookup: {
+        from: "videos",
+        localField: "videos",
+        foreignField: "_id",
+        as: "videos",
+        pipeline: [
+          {
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "owner",
+              pipeline: [
+                {
+                  $project: {
+                    fullName: 1,
+                    username: 1,
+                    email: 1,
+                  },
+                },
+              ],
+            },
+          },
+          {
+            $addFields: {
+              owner: {
+                $first: "$owner",
+              },
+            },
+          },
+        ],
+      },
+    },
+  ]);
 
   if (!video) {
     throw new ApiError(400, "Video Id is Invalid");
