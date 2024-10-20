@@ -6,6 +6,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import path from "path";
+
 import { Like } from "../models/like.model.js";
 import { Comment } from "../models/comment.model.js";
 
@@ -90,14 +91,19 @@ const getVideoById = asyncHandler(async (req, res) => {
     throw new ApiError(400, "User not found");
   }
   if (!user.watchHistory.includes(videoId)) {
-    user.watchHistory.push = videoId;
+    user.watchHistory.push(videoId);
     await user.save({ validateBeforeSave: false });
+    await Video.findByIdAndUpdate(
+      videoId,
+      { $inc: { views: 1 } }, 
+      { new: true }
+    );
   }
 
   const video = await Video.aggregate([
     {
       $match: {
-        id: new mongoose.Types.ObjectId(videoId),
+        _id: new mongoose.Types.ObjectId(videoId),
       },
     },
     {
