@@ -13,6 +13,40 @@ import { Comment } from "../models/comment.model.js";
 const getAllVideos = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
   //TODO: get all videos based on query, sort, pagination
+
+  const matchConditions = {};
+  matchConditions.isPublished = true;
+
+  if (query) {
+    matchConditions.title = { $regex: query, $options: "i" };
+  }
+
+  if (userId) {
+    matchConditions.owner = userId;
+  }
+
+  const sortConditions = {};
+  sortConditions[sortBy] = sortType === "desc" ? -1 : 1;
+
+  const videos = await Video.find(matchConditions)
+    .sort(sortConditions)
+    .skip((page - 1) * limit)
+    .limit(parseInt(limit))
+    .populate("owner", "fullName username avatar");
+
+  const totalVideos = await Video.countDocuments(matchConditions);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        videos,
+        totalPages: Math.ceil(totalVideos / limit),
+        currentPage: parseInt(page),
+      },
+      "Videos fetched successfully"
+    )
+  );
 });
 
 const publishAVideo = asyncHandler(async (req, res) => {
@@ -95,31 +129,31 @@ const getVideoById = asyncHandler(async (req, res) => {
     await user.save({ validateBeforeSave: false });
     await Video.findByIdAndUpdate(
       videoId,
-      { $inc: { views: 1 } }, 
+      { $inc: { views: 1 } },
       { new: true }
     );
   }
 
   const video = await Video.aggregate([
-    { 
-      $match: { _id: new mongoose.Types.ObjectId(videoId) }
+    {
+      $match: { _id: new mongoose.Types.ObjectId(videoId), isPublished: true },
     },
-    { 
+    {
       $lookup: {
         from: "users",
         localField: "owner",
         foreignField: "_id",
         as: "owner",
         pipeline: [
-          { 
-            $project: { fullName: 1, username: 1, email: 1, avatar: 1 } 
+          {
+            $project: { fullName: 1, username: 1, email: 1, avatar: 1 },
           },
         ],
       },
     },
-    { 
-      $addFields: { owner: { $arrayElemAt: ["$owner", 0] } } 
-    }
+    {
+      $addFields: { owner: { $arrayElemAt: ["$owner", 0] } },
+    },
   ]);
 
   if (!video) {

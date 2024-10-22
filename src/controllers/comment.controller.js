@@ -9,6 +9,30 @@ const getVideoComments = asyncHandler(async (req, res) => {
   //TODO: get all comments for a video
   const { videoId } = req.params;
   const { page = 1, limit = 10 } = req.query;
+
+  if (!mongoose.Types.ObjectId.isValid(videoId)) {
+    throw new ApiError(400, "Invalid video ID");
+  }
+
+  const comments = await Comment.find({ video: videoId })
+    .skip((page - 1) * limit)
+    .limit(parseInt(limit))
+    .populate("owner", "fullName username avatar")
+    .sort({ createdAt: -1 });
+
+  const totalComments = await Comment.countDocuments({ video: videoId });
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        comments,
+        totalPages: Math.ceil(totalComments / limit),
+        currentPage: parseInt(page),
+      },
+      "Comments fetched successfully"
+    )
+  );
 });
 
 const addComment = asyncHandler(async (req, res) => {
