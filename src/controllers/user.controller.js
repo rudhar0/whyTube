@@ -4,17 +4,43 @@ import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import { v4 as uuidv4 } from "uuid";
 import mongoose from "mongoose";
-
+import generatePassword from "generate-password";
 import { transporter } from "../app.js";
 
-const GetMailOption = (recipientAddress, subject, text) => {
+const GetMailOption = (recipientAddress, subject, text, url, password) => {
   return {
-    from: process.env.EMAIL_NAME,
+    from: process.env.GMAIL_EMAIL,
     to: recipientAddress,
     subject: subject,
-    text: text,
-    html: `<b>${text}</b>`,
+    text: `${text}\nVerification URL: ${url}\nYour password is: ${password}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6em; background-color: #e9ecef; padding: 60px;">
+        <div style="max-width: 700px; margin: 0 auto; padding: 40px; border-radius: 10px; background: #ffffff; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);">
+          <header style="text-align: center; border-bottom: 2px solid #007BFF; padding-bottom: 20px;">
+            <img src="https://yourcompanylogo.com/logo.png" alt="Company Logo" style="width: 120px; margin-bottom: 20px;">
+            <h2 style="color: #007BFF; margin: 0; font-size: 24px;">${subject}</h2>
+          </header>
+          <main style="padding: 20px;">
+            <p style="font-size: 1.1em; color: #333;">${text}</p>
+            <p style="font-weight: bold; color: #555;">Verification URL:</p>
+            <p>
+              <a href="${url}" style="display: inline-block; padding: 12px 25px; background-color: #007BFF; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold; transition: background-color 0.3s;">Verify your email</a>
+            </p>
+            <div style="background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin-top: 20px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);">
+              <p style="font-weight: bold; color: #d9534f;">Your password is:</p>
+              <p style="font-size: 1.2em; text-align: center; color: #333; padding: 10px; border: 1px dashed #d9534f; border-radius: 5px;"><strong>${password}</strong></p>
+            </div>
+          </main>
+          <footer style="text-align: center; padding-top: 20px; border-top: 2px solid #007BFF; color: #777; font-size: 0.9em;">
+            <p>If you have any questions, feel free to <a href="mailto:${process.env.GMAIL_EMAIL}" style="color: #007BFF; text-decoration: none;">contact us</a>.</p>
+            <hr style="border: none; border-top: 1px solid #ddd;" />
+            <p>© ${new Date().getFullYear()} Your Company Name. All rights reserved.</p>
+          </footer>
+        </div>
+      </div>
+    `,
   };
 };
 
@@ -37,13 +63,15 @@ const generateAccessAndRefereshTokens = async (userId) => {
 };
 
 const registerUser = asyncHandler(async (req, res) => {
-  const { fullName, email, username, password } = req.body;
+  const { fullName, email, username } = req.body;
 
-  if (
-    [fullName, email, username, password].some((field) => field?.trim() === "")
-  ) {
+  if ([fullName, email, username].some((field) => field?.trim() === "")) {
     throw new ApiError(400, "All fields are required");
   }
+  const password = generatePassword.generate({
+    length: 12,
+    numbers: true,
+  });
 
   const existedUser = await User.findOne({
     $or: [{ username }, { email }],
@@ -75,13 +103,24 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Avatar file is required");
   }
 
+  const verificationToken = uuidv4();
+  const verificationUrl =
+    "http://your-frontend-domain.com/verify?token=${verificationToken}";
+
   try {
-    await transporter.sendMail(
-      GetMailOption(email, "Welcome!", "Thank you for registering."),
+    transporter.sendMail(
+      GetMailOption(
+        email,
+        "Email Verification",
+        "Please verify your account.",
+        verificationUrl,
+        password
+      ),
       (error, mailResponse) => {
-        if (error) {
-          console.log(error);
-        }
+        if (error)
+          if (error) {
+            console.log(error);
+          }
         console.log(mailResponse);
       }
     );
@@ -98,6 +137,7 @@ const registerUser = asyncHandler(async (req, res) => {
     avatar: avatar.url,
     coverImage: coverImage?.url || "",
     email,
+    emailVerificationToken: verificationToken,
     password,
     username: username.toLowerCase(),
   });
@@ -472,7 +512,25 @@ const getWatchHistory = asyncHandler(async (req, res) => {
     );
 });
 
-const resetPassword = asyncHandler(async (req, res) => {});
+const verifiedUser = asyncHandler(async (req, res) => {
+  const { verificationToken } = req.params;
+
+  const user = await User.findOne({
+    emailVerificationToken: verificationToken,
+  }).select("-password -refreshToken");
+
+  if (!user) {
+    throw new ApiError(400, "Invalid verification token");
+  }
+
+  user.isVerified = true;
+  user.emailVerificationToken = null;
+  await user.save({ validateBeforeSave: false });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "User verified successfully"));
+});
 
 export {
   registerUser,
@@ -486,5 +544,5 @@ export {
   updateUserCoverImage,
   getUserChannelProfile,
   getWatchHistory,
-  resetPassword
+  verifiedUser,
 };
