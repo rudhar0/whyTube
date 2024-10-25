@@ -152,7 +152,9 @@ const registerUser = asyncHandler(async (req, res) => {
 
   return res
     .status(201)
-    .json(new ApiResponse(200, createdUser, "User registered Successfully"));
+    .json(
+      new ApiResponse(200, {}, "User verification sended to mail Successfully")
+    );
 });
 
 const loginUser = asyncHandler(async (req, res) => {
@@ -527,9 +529,74 @@ const verifiedUser = asyncHandler(async (req, res) => {
   user.emailVerificationToken = null;
   await user.save({ validateBeforeSave: false });
 
+  const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
+    user._id
+  );
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
   return res
     .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
     .json(new ApiResponse(200, user, "User verified successfully"));
+});
+
+const RequestResetPasswordOrVerfiyUser = asyncHandler(async (req, res) => {
+  const { email, username } = req.body;
+
+  const user = await User.findOne({
+    $or: {
+      email,
+      username,
+    },
+  });
+
+  if (!user) {
+    throw new ApiError(400, "User not found");
+  }
+
+  const verificationToken = uuidv4();
+  if (!user.isVerified) {
+    const verificationUrl =
+      "http://your-frontend-domain.com/verify?token=${verificationToken}";
+
+    try {
+      transporter.sendMail(
+        GetMailOption(
+          email,
+          "Email Verification",
+          "Please verify your account.",
+          verificationUrl,
+          password
+        ),
+        (error, mailResponse) => {
+          if (error)
+            if (error) {
+              console.log(error);
+            }
+          console.log(mailResponse);
+        }
+      );
+    } catch (error) {
+      throw new ApiError(
+        400,
+        "Error occurred while sending verification email.",
+        error
+      );
+    }
+
+    user.emailVerificationToken = verificationToken;
+    await user.save({ validateBeforeSave: false });
+    res
+      .status(200)
+      .json(new ApiResponse(200, {}, "varification email send succesfully"));
+  }
+
+  
 });
 
 export {
