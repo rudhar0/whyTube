@@ -11,7 +11,9 @@ import {
     getUserChannelProfile, 
     getWatchHistory, 
     updateAccountDetails,
-    verifiedUser
+    verifiedUser,
+    resetUserPassword,
+    RequestResetPasswordOrVerfiyUser
 } from "../controllers/user.controller.js";
 import {upload} from "../middlewares/multer.middleware.js"
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -48,4 +50,6 @@ router.route("/cover-image").patch(verifyJWT, upload.single("coverImage"), updat
 router.route("/c/:username").get(verifyJWT, getUserChannelProfile)
 router.route("/history").get(verifyJWT, getWatchHistory)
 router.route("/verify/:verificationToken").patch(verifiedUser)
+router.route("/request-verification-reset-password").patch(RequestResetPasswordOrVerfiyUser)
+router.route("/reset-user-password/:verificationToken").patch(resetUserPassword)
 export default router

@@ -44,6 +44,42 @@ const GetMailOption = (recipientAddress, subject, text, url, password) => {
   };
 };
 
+const GetMailOptionForPasswordReset = (
+  recipientAddress,
+  subject,
+  text,
+  url
+) => {
+  return {
+    from: process.env.GMAIL_EMAIL,
+    to: recipientAddress,
+    subject: subject,
+    text: `${text}\nVerification URL: ${url}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6em; background-color: #f4f4f4; padding: 40px;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 30px; border-radius: 10px; background: #ffffff; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);">
+          <header style="text-align: center; border-bottom: 2px solid #007BFF; padding-bottom: 20px;">
+            <img src="https://yourcompanylogo.com/logo.png" alt="Company Logo" style="width: 120px; margin-bottom: 20px;">
+            <h2 style="color: #007BFF; margin: 0; font-size: 26px; font-weight: bold;">${subject}</h2>
+          </header>
+          <main style="padding: 20px;">
+            <p style="font-size: 1.1em; color: #333; margin-bottom: 20px;">${text}</p>
+            <p style="font-weight: bold; color: #555; margin-bottom: 10px;">Verification URL:</p>
+            <p>
+              <a href="${url}" style="display: inline-block; padding: 12px 25px; background-color: #007BFF; color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold; transition: background-color 0.3s; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);">Verify your email</a>
+            </p>
+          </main>
+          <footer style="text-align: center; padding-top: 20px; border-top: 2px solid #007BFF; color: #777; font-size: 0.9em;">
+            <p>If you have any questions, feel free to <a href="mailto:${process.env.GMAIL_EMAIL}" style="color: #007BFF; text-decoration: none;">contact us</a>.</p>
+            <hr style="border: none; border-top: 1px solid #ddd;" />
+            <p>© ${new Date().getFullYear()} Your Company Name. All rights reserved.</p>
+          </footer>
+        </div>
+      </div>
+    `,
+  };
+};
+
 const generateAccessAndRefereshTokens = async (userId) => {
   try {
     const user = await User.findById(userId);
@@ -548,26 +584,42 @@ const verifiedUser = asyncHandler(async (req, res) => {
 const RequestResetPasswordOrVerfiyUser = asyncHandler(async (req, res) => {
   const { email, username } = req.body;
 
+  if (!email && !username) {
+    throw new ApiError(200, "username or email is required");
+  }
+
   const user = await User.findOne({
-    $or: {
-      email,
-      username,
-    },
+    $or: [
+      {
+        email,
+      },
+      {
+        username,
+      },
+    ],
   });
 
   if (!user) {
     throw new ApiError(400, "User not found");
   }
 
+  const password = generatePassword.generate({
+    length: 12,
+    numbers: true,
+  });
+
+  const userEmail = user.email;
+
   const verificationToken = uuidv4();
   if (!user.isVerified) {
+    console.log(verificationToken);
     const verificationUrl =
       "http://your-frontend-domain.com/verify?token=${verificationToken}";
 
     try {
       transporter.sendMail(
         GetMailOption(
-          email,
+          userEmail,
           "Email Verification",
           "Please verify your account.",
           verificationUrl,
@@ -590,13 +642,72 @@ const RequestResetPasswordOrVerfiyUser = asyncHandler(async (req, res) => {
     }
 
     user.emailVerificationToken = verificationToken;
+    user.password = password;
     await user.save({ validateBeforeSave: false });
-    res
+    return res
       .status(200)
       .json(new ApiResponse(200, {}, "varification email send succesfully"));
   }
 
-  
+  const verificationUrlPassword =
+    "http://your-frontend-domain.com/reset-password?token=${verificationToken}";
+
+  try {
+    transporter.sendMail(
+      GetMailOptionForPasswordReset(
+        userEmail,
+        "Email Verification",
+        "Please verify your account.",
+        verificationUrlPassword
+      ),
+      (error, mailResponse) => {
+        if (error)
+          if (error) {
+            console.log(error);
+          }
+        console.log(mailResponse);
+      }
+    );
+  } catch (error) {
+    throw new ApiError(
+      400,
+      "Error occurred while sending verification email.",
+      error
+    );
+  }
+
+  user.emailVerificationToken = verificationToken;
+  await user.save({ validateBeforeSave: false });
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "varification email send succesfully"));
+});
+
+const resetUserPassword = asyncHandler(async (req, res) => {
+  const { newPassword } = req.body;
+  const { verificationToken } = req.params;
+
+  const user = await User.findOne({
+    emailVerificationToken: verificationToken,
+  })
+  if (!user) {
+    throw new ApiError(400, "Invalid verification token");
+  }
+
+  if (!newPassword) {
+    throw new ApiError(400, "password is required");
+  }
+
+  user.password = newPassword;
+  user.emailVerificationToken = null;
+  await user.save({ validateBeforeSave: false })
+
+const Updateduser = await User.findById(user._id).select("-password -refreshToken");
+
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, Updateduser, "Password changed successfully"));
 });
 
 export {
@@ -612,4 +723,6 @@ export {
   getUserChannelProfile,
   getWatchHistory,
   verifiedUser,
+  RequestResetPasswordOrVerfiyUser,
+  resetUserPassword
 };
