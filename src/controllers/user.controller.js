@@ -101,6 +101,8 @@ const generateAccessAndRefereshTokens = async (userId) => {
 const registerUser = asyncHandler(async (req, res) => {
   const { fullName, email, username } = req.body;
 
+  const usernameRegex = /^[a-zA-Z0-9_]+$/;
+
   if ([fullName, email, username].some((field) => field?.trim() === "")) {
     throw new ApiError(400, "All fields are required");
   }
@@ -115,6 +117,13 @@ const registerUser = asyncHandler(async (req, res) => {
 
   if (existedUser) {
     throw new ApiError(409, "User with email or username already exists");
+  }
+
+  if (!usernameRegex.test(username)) {
+    throw new ApiError(
+      400,
+      "Username can only contain letters, numbers, and underscores"
+    );
   }
 
   const avatarLocalPath = req.files?.avatar[0]?.path;
@@ -689,7 +698,7 @@ const resetUserPassword = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({
     emailVerificationToken: verificationToken,
-  })
+  });
   if (!user) {
     throw new ApiError(400, "Invalid verification token");
   }
@@ -700,14 +709,44 @@ const resetUserPassword = asyncHandler(async (req, res) => {
 
   user.password = newPassword;
   user.emailVerificationToken = null;
-  await user.save({ validateBeforeSave: false })
+  await user.save({ validateBeforeSave: false });
 
-const Updateduser = await User.findById(user._id).select("-password -refreshToken");
-
+  const Updateduser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
 
   return res
     .status(200)
     .json(new ApiResponse(200, Updateduser, "Password changed successfully"));
+});
+
+const isValidUser = asyncHandler(async (req, res) => {
+  const { email, username } = req.body;
+  const usernameRegex = /^[a-zA-Z0-9_]+$/;
+  if (!email && !username) {
+    throw new ApiError(400, "filed is required");
+  }
+  if (email) {
+    const user = await User.findOne({ email });
+    if (!user) {
+      throw new ApiError(400, "User not found");
+    }
+    return res.status(200).json(new ApiResponse(200, user, "user is verified"));
+  }
+  if (username) {
+    if (!usernameRegex.test(username)) {
+      throw new ApiError(
+        400,
+        "Username can only contain letters, numbers, and underscores"
+      );
+    }
+
+    const user = await User.findOne({ username });
+    if (!user) {
+      throw new ApiError(400, "User not found");
+    }
+    return res.status(200).json(new ApiResponse(200, user, "user is verified"));
+  }
 });
 
 export {
@@ -724,5 +763,6 @@ export {
   getWatchHistory,
   verifiedUser,
   RequestResetPasswordOrVerfiyUser,
-  resetUserPassword
+  resetUserPassword,
+  isValidUser
 };

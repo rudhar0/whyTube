@@ -13,7 +13,8 @@ import {
     updateAccountDetails,
     verifiedUser,
     resetUserPassword,
-    RequestResetPasswordOrVerfiyUser
+    RequestResetPasswordOrVerfiyUser,
+    isValidUser
 } from "../controllers/user.controller.js";
 import {upload} from "../middlewares/multer.middleware.js"
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -52,4 +53,5 @@ router.route("/history").get(verifyJWT, getWatchHistory)
 router.route("/verify/:verificationToken").patch(verifiedUser)
 router.route("/request-verification-reset-password").patch(RequestResetPasswordOrVerfiyUser)
 router.route("/reset-user-password/:verificationToken").patch(resetUserPassword)
+router.route("/is-user-valid").get(isValidUser)
 export default router
