@@ -218,6 +218,10 @@ const loginUser = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User does not exist");
   }
 
+  if(!user.isVerified){
+    throw new ApiError(404, "User not verified");
+  }
+
   const isPasswordValid = await user.isPasswordCorrect(password);
 
   if (!isPasswordValid) {
@@ -727,9 +731,9 @@ const isValidUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "filed is required");
   }
   if (email) {
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select("-password -refreshToken");
     if (!user) {
-      throw new ApiError(400, "User not found");
+      throw new ApiError(404, "User not found");
     }
     return res.status(200).json(new ApiResponse(200, user, "user is verified"));
   }
@@ -741,11 +745,11 @@ const isValidUser = asyncHandler(async (req, res) => {
       );
     }
 
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ username }).select("-password -refreshToken");
     if (!user) {
       throw new ApiError(400, "User not found");
     }
-    return res.status(200).json(new ApiResponse(200, user, "user is verified"));
+    return res.status(200).json(new ApiResponse(200, {}, "user is verified"));
   }
 });
 

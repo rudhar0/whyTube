@@ -53,5 +53,5 @@ router.route("/history").get(verifyJWT, getWatchHistory)
 router.route("/verify/:verificationToken").patch(verifiedUser)
 router.route("/request-verification-reset-password").patch(RequestResetPasswordOrVerfiyUser)
 router.route("/reset-user-password/:verificationToken").patch(resetUserPassword)
-router.route("/is-user-valid").get(isValidUser)
+router.route("/is-user-valid").post(isValidUser)
 export default router
