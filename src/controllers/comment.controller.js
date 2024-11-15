@@ -94,8 +94,12 @@ const updateComment = asyncHandler(async (req, res) => {
     throw new ApiError(400, "comment not found");
   }
 
-  if (comment._id != req.user._id) {
-    throw new ApiError(400, "Unauthorised request");
+  // if (comment._id != req.user._id) {
+  //   throw new ApiError(400, "Unauthorised request");
+  // }
+
+  if (comment.owner.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, "Unauthorized request: You do not own this comment");
   }
 
   comment.content = content;
